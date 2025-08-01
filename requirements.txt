@@ -1,4 +1,3 @@
-streamlit
+streamlit==1.33.0
 pyvcf==0.6.8
 pandas==1.5.3
-
