@@ -1,0 +1,3 @@
+streamlit
+cyvcf2
+pandas
