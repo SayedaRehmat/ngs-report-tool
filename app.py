@@ -1,44 +1,45 @@
 import streamlit as st
-from cyvcf2 import VCF
+import vcf  # <- PyVCF
 import pandas as pd
 
 st.title("🧬 VCF Variant Summary Tool")
 
 uploaded_file = st.file_uploader("Upload a VCF file", type=["vcf"])
 
-def get_summary(vcf):
-    snv_count = 0
-    indel_count = 0
-    transitions = 0
-    transversions = 0
+def summarize_vcf(reader):
+    snvs = 0
+    indels = 0
+    ti = 0
+    tv = 0
 
-    for variant in vcf:
-        ref = variant.REF
-        alt = variant.ALT[0]
-        if len(ref) == 1 and len(alt) == 1:
-            snv_count += 1
-            pair = {ref, alt}
+    for record in reader:
+        if record.is_snp:
+            snvs += 1
+            ref, alt = record.REF, record.ALT[0]
+            pair = {ref, str(alt)}
             if pair in [{"A", "G"}, {"C", "T"}]:
-                transitions += 1
+                ti += 1
             else:
-                transversions += 1
-        else:
-            indel_count += 1
+                tv += 1
+        elif record.is_indel:
+            indels += 1
 
-    total = snv_count + indel_count
-    ti_tv = round(transitions / transversions, 2) if transversions else None
+    total = snvs + indels
+    ti_tv = round(ti / tv, 2) if tv else None
+
     return pd.DataFrame([{
         "Total Variants": total,
-        "SNVs": snv_count,
-        "Indels": indel_count,
+        "SNVs": snvs,
+        "Indels": indels,
         "Ti/Tv Ratio": ti_tv
     }])
 
 if uploaded_file is not None:
     with open("temp.vcf", "wb") as f:
         f.write(uploaded_file.read())
-    
-    vcf = VCF("temp.vcf")
-    df_summary = get_summary(vcf)
-    st.subheader("📊 Variant Summary")
-    st.dataframe(df_summary)
+
+    with open("temp.vcf", "r") as f:
+        vcf_reader = vcf.Reader(f)
+        summary_df = summarize_vcf(vcf_reader)
+        st.subheader("📊 Variant Summary")
+        st.dataframe(summary_df)
