@@ -1,0 +1,11 @@
+---
+title: "NGS Variant Report"
+output: pdf_document
+params:
+  summary: NA
+---
+
+## Variant Summary
+
+```{r}
+knitr::kable(params$summary)
