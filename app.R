@@ -1,51 +1,44 @@
-library(shiny)
-library(VariantAnnotation)
-library(DT)
-library(rmarkdown)
+import streamlit as st
+from cyvcf2 import VCF
+import pandas as pd
 
-ui <- fluidPage(
-  titlePanel("NGS Variant Summary Tool"),
-  sidebarLayout(
-    sidebarPanel(
-      fileInput("vcf_file", "Upload VCF File (.vcf)", accept = ".vcf"),
-      actionButton("analyze_btn", "Analyze & Generate Report")
-    ),
-    mainPanel(
-      DTOutput("summary_table"),
-      downloadButton("download_report", "Download PDF Report")
-    )
-  )
-)
+st.title("🧬 VCF Variant Summary Tool")
 
-server <- function(input, output) {
-  vcf_data <- eventReactive(input$analyze_btn, {
-    req(input$vcf_file)
-    vcf <- readVcf(input$vcf_file$datapath, "hg19")
-    ti <- sum(isSNV(vcf))
-    tv <- nrow(vcf) - ti
-    ratio <- if (tv > 0) round(ti / tv, 2) else NA
-    data.frame(
-      Total_Variants = nrow(vcf),
-      SNVs = ti,
-      Indels = sum(isIndel(vcf)),
-      TiTv_Ratio = ratio
-    )
-  })
+uploaded_file = st.file_uploader("Upload a VCF file", type=["vcf"])
 
-  output$summary_table <- renderDT({
-    req(vcf_data())
-    datatable(vcf_data())
-  })
+def get_summary(vcf):
+    snv_count = 0
+    indel_count = 0
+    transitions = 0
+    transversions = 0
 
-  output$download_report <- downloadHandler(
-    filename = function() { "variant_report.pdf" },
-    content = function(file) {
-      rmarkdown::render("report_template.Rmd",
-                        output_file = file,
-                        params = list(summary = vcf_data()),
-                        envir = new.env(parent = globalenv()))
-    }
-  )
-}
+    for variant in vcf:
+        ref = variant.REF
+        alt = variant.ALT[0]
+        if len(ref) == 1 and len(alt) == 1:
+            snv_count += 1
+            pair = {ref, alt}
+            if pair in [{"A", "G"}, {"C", "T"}]:
+                transitions += 1
+            else:
+                transversions += 1
+        else:
+            indel_count += 1
 
-shinyApp(ui, server)
+    total = snv_count + indel_count
+    ti_tv = round(transitions / transversions, 2) if transversions else None
+    return pd.DataFrame([{
+        "Total Variants": total,
+        "SNVs": snv_count,
+        "Indels": indel_count,
+        "Ti/Tv Ratio": ti_tv
+    }])
+
+if uploaded_file is not None:
+    with open("temp.vcf", "wb") as f:
+        f.write(uploaded_file.read())
+    
+    vcf = VCF("temp.vcf")
+    df_summary = get_summary(vcf)
+    st.subheader("📊 Variant Summary")
+    st.dataframe(df_summary)
