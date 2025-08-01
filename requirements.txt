@@ -1,3 +1,3 @@
 streamlit
-pyvcf
+pyvcf==0.6.8
 pandas
